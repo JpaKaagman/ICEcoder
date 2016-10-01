@@ -9,7 +9,7 @@ if (!$demoMode && isset($_SESSION['loggedIn']) && $_SESSION['loggedIn'] && isset
 	// Get our old paths & user settings
 	$oldLocal = $ICEcoder["githubLocalPaths"];
 	$oldRemote = $ICEcoder["githubRemotePaths"];
-	$settingsContents = file_get_contents($settingsFile,false,$context);
+	$settingsContents = getData($settingsFile);
 
 	// ========
 	// CHOOSING
@@ -52,6 +52,10 @@ if (!$demoMode && isset($_SESSION['loggedIn']) && $_SESSION['loggedIn'] && isset
 				$fh = fopen($settingsFile, 'w');
 				fwrite($fh, $settingsContents);
 				fclose($fh);
+
+				// Clear any FTP session we may have
+				$_SESSION['ftpSiteRef'] = false;
+
 				// Hide this popup and reload file manager
 				echo "<script>top.ICEcoder.showHide('hide',top.document.getElementById('blackMask'));top.ICEcoder.refreshFileManager();</script>";
 			} else {
@@ -73,7 +77,7 @@ if (!$demoMode && isset($_SESSION['loggedIn']) && $_SESSION['loggedIn'] && isset
 
 		// Add the new one
 		if ($_POST['githubLocalPathNEW'] != "" && $_POST['githubRemotePathNEW'] != "") {
-			$settingsNew .= '"'.xssClean($_POST['githubLocalPathNEW'],"html").'",';
+			$settingsNew .= '"'.injClean(xssClean($_POST['githubLocalPathNEW'],"html")).'",';
 		}
 
 		// Then set all the old local paths
@@ -89,7 +93,7 @@ if (!$demoMode && isset($_SESSION['loggedIn']) && $_SESSION['loggedIn'] && isset
 
 		// Add the new one
 		if ($_POST['githubLocalPathNEW'] != "" && $_POST['githubRemotePathNEW'] != "") {
-			$settingsNew .= '"'.xssClean($_POST['githubRemotePathNEW'],"html").'",';
+			$settingsNew .= '"'.injClean(xssClean($_POST['githubRemotePathNEW'],"html")).'",';
 		}
 
 		// Then set all the old remote paths
@@ -114,7 +118,7 @@ if (!$demoMode && isset($_SESSION['loggedIn']) && $_SESSION['loggedIn'] && isset
 		// Redo the arrays using the form data
 		for ($i=0; $i<count($oldLocal); $i++) {
 			if ($_POST['githubLocalPath'.$i] != "") {
-				$settingsNew .= '"'.xssClean($_POST['githubLocalPath'.$i],"html").'",';
+				$settingsNew .= '"'.injClean(xssClean($_POST['githubLocalPath'.$i],"html")).'",';
 			}
 		}
 		// Rtrim off the last comma
@@ -127,7 +131,7 @@ if (!$demoMode && isset($_SESSION['loggedIn']) && $_SESSION['loggedIn'] && isset
 		// Redo the arrays using the form data
 		for ($i=0; $i<count($oldRemote); $i++) {
 			if ($_POST['githubRemotePath'.$i] != "") {
-				$settingsNew .= '"'.xssClean($_POST['githubRemotePath'.$i],"html").'",';
+				$settingsNew .= '"'.injClean(xssClean($_POST['githubRemotePath'.$i],"html")).'",';
 			}
 		}
 		// Rtrim off the last comma

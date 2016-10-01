@@ -3,28 +3,11 @@ include("lib/headers.php");
 include("lib/settings.php");
 $t = $text['index'];
 
-// Check IP permissions
-if (!in_array($_SERVER["REMOTE_ADDR"], $_SESSION['allowedIPs']) && !in_array("*", $_SESSION['allowedIPs'])) {
-	header('Location: /');
-	die("Sorry, not in allowed IPs list");
-};
-
 $updateMsg = '';
 // Check for updates
 if ($ICEcoder["checkUpdates"]) {
 	$icv_url = "https://icecoder.net/latest-version?thisVersion=".$ICEcoder["versionNo"];
-	if (ini_get('allow_url_fopen')) {
-		$icvInfo = @file_get_contents($icv_url,false,$context);
-		if (!$icvInfo) {
-			$icvInfo = file_get_contents(str_replace("https:","http:",$icv_url), false, $context);
-		}
-		$icvInfo = explode("\n",$icvInfo);
-	} elseif (function_exists('curl_init')) {
-		$ch = curl_init($icv_url);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		$icvInfo = explode("\n", curl_exec($ch));
-	}
+	$icvInfo = explode("\n", getData($icv_url,'curl'));
 	$icv = $icvInfo[0];
 	$icvI = str_replace('"','\\\'',$icvInfo[1]);
 	$thisV = $ICEcoder["versionNo"];
@@ -48,6 +31,10 @@ $isMac = strpos($_SERVER['HTTP_USER_AGENT'], "Macintosh")>-1 ? true : false;
 <meta name="robots" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=0.5, user-scalable=no">
 <link rel="stylesheet" type="text/css" href="lib/ice-coder.css?microtime=<?php echo microtime(true);?>">
+<link rel="stylesheet" href="<?php
+if ($ICEcoder["theme"]=="default") {echo 'lib/editor.css';} else {echo $ICEcoder["codeMirrorDir"].'/theme/'.$ICEcoder["theme"].'.css';};
+echo "?microtime=".microtime(true);
+?>">
 <link rel="icon" type="image/png" href="favicon.png">
 <script>
 iceRoot = "<?php echo $ICEcoder['root']; ?>";
@@ -80,6 +67,7 @@ $t = $text['index'];
 </script>
 <script language="JavaScript" src="lib/ice-coder<?php if (!$ICEcoder['devMode']) {echo '.min';};?>.js?microtime=<?php echo microtime(true);?>"></script>
 <script src="lib/mmd.js?microtime=<?php echo microtime(true);?>"></script>
+<script src="lib/draggabilly.pkgd.min.js?microtime=<?php echo microtime(true);?>"></script>
 <script src="farbtastic/farbtastic.js?microtime=<?php echo microtime(true);?>"></script>
 <script src="lib/difflib.js?microtime=<?php echo microtime(true);?>"></script>
 <link rel="stylesheet" href="farbtastic/farbtastic.css?microtime=<?php echo microtime(true);?>" type="text/css">
@@ -175,7 +163,7 @@ $t = $text['index'];
 	<span id="singleFileMenuItems">
 		<a href="javascript:top.ICEcoder.renameFile(top.ICEcoder.selectedFiles[top.ICEcoder.selectedFiles.length-1])" onMouseOver="ICEcoder.showFileMenu()"><?php echo $t['Rename'];?></a>
 		<div onMouseOver="ICEcoder.showFileMenu()" style="padding: 2px 0"><hr></div>
-		<a nohref onClick="window.open(iceRoot + top.ICEcoder.selectedFiles[top.ICEcoder.selectedFiles.length-1].replace(/\|/g,'/'))" onMouseOver="ICEcoder.showFileMenu()" style="cursor: pointer"><?php echo $t['View Webpage'];?></a>
+		<a nohref onClick="window.open('//<?php echo $_SERVER['HTTP_HOST'];?>' + iceRoot + top.ICEcoder.selectedFiles[top.ICEcoder.selectedFiles.length-1].replace(/\|/g,'/'))" onMouseOver="ICEcoder.showFileMenu()" style="cursor: pointer"><?php echo $t['View Webpage'];?></a>
 	</span>
 	<div onMouseOver="ICEcoder.showFileMenu()" style="padding: 2px 0"><hr></div>
 	<?php
@@ -242,7 +230,7 @@ $t = $text['index'];
 		<div id="optionsSource" class="optionsList" onmouseover="top.ICEcoder.showHideFileNav('show',this.id)" onmouseout="top.ICEcoder.showHideFileNav('hide',this.id);top.ICEcoder.canShowFMNav=false">
 			<ul>
 				<li><a nohref onclick="ICEcoder.goLocalhostRoot()">Localhost</a></li>
-				<li><a nohref onclick="ICEcoder.message('FTP integration coming soon\n\nCan you help with this? Get involved at icecoder.net')">FTP</a></li>
+				<li><a nohref onclick="ICEcoder.ftpManager()">FTP</a></li>
 				<li><a nohref onclick="ICEcoder.githubManager()">GitHub</a></li>
 				<!--
 				<li><a nohref onclick="ICEcoder.message('SVN integration coming soon')">SVN</a></li>
@@ -320,18 +308,27 @@ $t = $text['index'];
 			<div class="goLine"><?php echo $t['Go to Line'];?> <input type="text" name="goToLine" value="" id="goToLineNo" class="textbox goToLine">
 			<div class="view" title="<?php echo $t['View'];?>" onClick="top.ICEcoder.openPreviewWindow()" id="fMView"></div>
 			<div class="bug" title="<?php echo $t['Bug reporting not active'];?>" onClick="top.ICEcoder.openBugReport()" id="bugIcon"></div>
+			<div class="minimapLink" onclick="top.ICEcoder.docExplorerShow('miniMap')"><?php echo $t['Minimap'];?></div>
+			<div class="functionClassList" onclick="top.ICEcoder.docExplorerShow('functionClassList')"><?php echo $t['Function/Class List'];?></div>
 			<input type="hidden" name="csrf" value="<?php echo $_SESSION["csrf"]; ?>">
 		</form>
 	</div>
-	<iframe name="contentFrame" id="content" src="editor.php" class="code"></iframe>
+	<iframe name="contentFrame" id="content" src="editor.php" class="code" scrolling="no"></iframe>
 </div>
 
 <div class="footer" id="footer" onContextMenu="return false">
 	<div class="nesting" id="nestValid"></div>
 	<div class="versionsDisplay" id="versionsDisplay" onclick="top.ICEcoder.versionsScreen(top.ICEcoder.openFiles[top.ICEcoder.selectedTab-1].replace(/\//g,'|'))"></div>
 	<div class="splitPaneControls" id="splitPaneControls"><div class="off" id="splitPaneControlsOff" title="<?php echo $t['Single pane'];?>" onclick="top.ICEcoder.setSplitPane('off')"></div><div class="on" id="splitPaneControlsOn" title="<?php echo $t['Diff pane also'];?>" onclick="top.ICEcoder.setSplitPane('on')" style="opacity: 0.5"></div></div>
+	<div class="splitPaneNames" id="splitPaneNamesMain">Main Pane</div>
+	<div class="splitPaneNames" id="splitPaneNamesDiff">Diff Pane</div>
 	<div class="byteDisplay" id="byteDisplay" style="display: none" onClick="top.ICEcoder.showDisplay('char')"></div>
 	<div class="charDisplay" id="charDisplay" style="display: inline-block" onClick="top.ICEcoder.showDisplay('byte')"></div>
+</div>
+
+<div class="docExplorer" id="docExplorer">
+	<div class="miniMap" id="miniMap"><div class="miniMapContainer" id="miniMapContainer"></div><div class="miniMapContent" id="miniMapContent"></div></div>
+	<div class="functionClassList" id="functionClassList"></div>
 </div>
 
 <script>

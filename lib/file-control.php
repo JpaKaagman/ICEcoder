@@ -59,7 +59,7 @@ for ($i=0; $i<count($allFiles); $i++) {
 		// Or a remote URL that doesn't start http
 		($_GET['action']=="getRemoteFile" && strpos($allFiles[$i],"http") !== 0)
 		) {
-		die("alert('Sorry! - problem with file requested');</script>");
+		die("top.ICEcoder.message('Sorry! - problem with file requested');</script>");
 	};
 }
 
@@ -97,7 +97,7 @@ if ($_GET['action']=="load") {
 			ftpStart();
 			// Show user warning if no good connection
 			if (!$ftpConn || !$ftpLogin) {
-				die('alert("Sorry, no FTP connection to '.$ftpHost.' for user '.$ftpUser.'");top.ICEcoder.serverMessage();top.ICEcoder.serverQueue("del",0);</script>');
+				die('top.ICEcoder.message("Sorry, no FTP connection to '.$ftpHost.' for user '.$ftpUser.'");top.ICEcoder.serverMessage();top.ICEcoder.serverQueue("del",0);</script>');
 				exit;
 			}
 			// Get our file contents and close the FTP connection
@@ -105,7 +105,7 @@ if ($_GET['action']=="load") {
 			ftpEnd();
 		// Get local file
 		} else {
-			$loadedFile = toUTF8noBOM(file_get_contents($file,false,$context),true);
+			$loadedFile = toUTF8noBOM(getData($file),true);
 		}
 			$encoding=ini_get("default_charset");
 			if($encoding=="")
@@ -216,10 +216,13 @@ if (action=="load") {
 			"<div class=\"whiteGlow\" style=\"display: inline-block; margin-top: -10px; border: solid 10px #fff; color: #000; background-color: #fff\" id=\"imgInfo\"  onmouseover=\"top.ICEcoder.overPopup=true\" onmouseout=\"top.ICEcoder.overPopup=false\">" + 
 				"<b><?php echo $fileLoc."/".$fileName;?></b>" + 
 			"</div><br>" + 
+			"<div id=\"canvasPickerColorInfo\">"+
 			"<input type=\"text\" id=\"hexMouseXY\" style=\"border: 1px solid #888; border-right: 0; width: 70px\" onmouseover=\"top.ICEcoder.overPopup=true\" onmouseout=\"top.ICEcoder.overPopup=false\"></input>" + 
 			"<input type=\"text\" id=\"rgbMouseXY\" style=\"border: 1px solid #888; margin-right: 10px; width: 70px\" onmouseover=\"top.ICEcoder.overPopup=true\" onmouseout=\"top.ICEcoder.overPopup=false\"></input>" + 
 			"<input type=\"text\" id=\"hex\" style=\"border: 1px solid #888; border-right: 0; width: 70px\" onmouseover=\"top.ICEcoder.overPopup=true\" onmouseout=\"top.ICEcoder.overPopup=false\"></input>" + 
-			"<input type=\"text\" id=\"rgb\" style=\"border: 1px solid #888; width: 70px\" onmouseover=\"top.ICEcoder.overPopup=true\" onmouseout=\"top.ICEcoder.overPopup=false\"></input>";
+			"<input type=\"text\" id=\"rgb\" style=\"border: 1px solid #888; width: 70px\" onmouseover=\"top.ICEcoder.overPopup=true\" onmouseout=\"top.ICEcoder.overPopup=false\"></input>"+
+			"</div>"+
+			"<div id=\"canvasPickerCORSInfo\" style=\"display: none; padding-top: 4px\">CORS not enabled on resource site</div>";
 		top.document.getElementById('floatingContainer').style.background = "#fff url('<?php echo $fileLoc."/".$fileName;?>') no-repeat 0 0";
 	}
 

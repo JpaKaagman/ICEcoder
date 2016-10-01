@@ -230,7 +230,7 @@ if (!$error && $_GET['action']=="save") {
 							/* console.log(\'Calling \'+saveURL+\' via XHR\'); */
 							xhr.open("POST",saveURL,true);
 							xhr.setRequestHeader(\'Content-type\', \'application/x-www-form-urlencoded\');
-							xhr.send(\'timeStart='.$_POST["timeStart"].'&file='.$fileURL.'&newFileName=\'+newFileName.replace(/\\\+/g,"%2B")+\'&contents=\'+encodeURIComponent(top.ICEcoder.saveAsContent));
+							xhr.send(\'timeStart='.numClean($_POST["timeStart"]).'&file='.$fileURL.'&newFileName=\'+newFileName.replace(/\\\+/g,"%2B")+\'&contents=\'+encodeURIComponent(top.ICEcoder.saveAsContent));
 							top.ICEcoder.serverMessage("<b>'.$t['Saving'].'</b><br>" + "'.($finalAction == "Save" ? "newFileName" : "'".$fileName."'").'");
 						}
 					}
@@ -319,7 +319,7 @@ if (!$error && $_GET['action']=="save") {
 						// get old file contents, and count stats on usage \n and \r there
 						// in this case we can keep line endings, which file had before, without
 						// making code version control systems going crazy about line endings change in whole file.
-						$oldContents = file_exists($file)?file_get_contents($file):'';
+						$oldContents = file_exists($file)?getData($file):'';
 						$unixNewLines = preg_match_all('/[^\r][\n]/u', $oldContents);
 						$windowsNewLines = preg_match_all('/[\r][\n]/u', $oldContents);
 					} else {
@@ -399,7 +399,7 @@ if (!$error && $_GET['action']=="save") {
 					// Have a version index already? Update contents
 					if (file_exists($backupIndex)) {
 						$versionsInfo = "";
-						$versionsInfoOrig = file_get_contents($backupIndex,false,$context);
+						$versionsInfoOrig = getData($backupIndex);
 						$versionsInfoOrig = explode("\n",$versionsInfoOrig);
 						$replacedLine = false;
 						// For each line, either re-set number or simply include the line
@@ -451,7 +451,7 @@ if (!$error && $_GET['action']=="save") {
 				// Reload previewWindow window if not a Markdown file
 				// In doing this, we check on an interval for the page to be complete and if we last saw it loading
 				// When we are done loading, so set the loading status to false and load plugins ontop...		
-				$doNext .= 'if (top.ICEcoder.previewWindow.location && top.ICEcoder.previewWindow.location.pathname.indexOf(".md")==-1) {
+				$doNext .= 'if (top.ICEcoder.previewWindow.location && top.ICEcoder.previewWindow.location.pathname && top.ICEcoder.previewWindow.location.pathname.indexOf(".md")==-1) {
 					top.ICEcoder.previewWindowLoading = false;
 					top.ICEcoder.previewWindow.location.reload(true);
 					
@@ -495,7 +495,7 @@ if (!$error && $_GET['action']=="save") {
 
 			} else {
 				// Only applicable for local files
-				$loadedFile = toUTF8noBOM(file_get_contents($file,false,$context),true);
+				$loadedFile = toUTF8noBOM(getData($file),true);
 				$fileCountInfo = getVersionsCount($fileLoc,$fileName);
 				$doNext .= '
 				var loadedFile = document.createElement("textarea");
@@ -748,7 +748,7 @@ if (!isset($ftpSite) && !$error && $_GET['action']=="upload") {
 
 		function getDetails($fileArr) {
 			foreach($fileArr['name'] as $keyee => $info) {
-				$uploads[$keyee]->name=$fileArr['name'][$keyee];  
+				$uploads[$keyee]->name=xssClean($fileArr['name'][$keyee],"html");  
 				$uploads[$keyee]->type=$fileArr['type'][$keyee];  
 				$uploads[$keyee]->tmp_name=$fileArr['tmp_name'][$keyee];  
 				$uploads[$keyee]->error=$fileArr['error'][$keyee];  
@@ -810,9 +810,14 @@ if (!$error && $_GET['action']=="delete") {
 			if (rtrim($fullPath,"/") == rtrim($docRoot,"/")) {
 				$doNext .= "top.ICEcoder.message('".$t['Sorry, cannot delete...']."');";
 			} else if (!$demoMode && is_writable($fullPath)) {
-				is_dir($fullPath)
-					? rrmdir($fullPath)
-					: unlink($fullPath);
+				if (is_dir($fullPath)) {
+					rrmdir($fullPath);
+				} else {
+					// Delete file to tmp dir or full delete
+					$ICEcoder['deleteToTmp']					
+						? rename($fullPath,str_replace("\\","/",dirname(__FILE__))."/../tmp/.".str_replace(":","_",str_replace("/","_",$fullPath)))
+						: unlink($fullPath);
+				}
 				$fileName = basename($fullPath);
 				$fileLoc = dirname(str_replace($docRoot,"",$fullPath));
 				if ($fileLoc=="" || $fileLoc=="\\") {$fileLoc="/";};
@@ -831,18 +836,26 @@ if (!$error && $_GET['action']=="delete") {
 };
 
 // The function to recursively remove folders & files
-function rrmdir($dir) { 
+function rrmdir($dir) {
+	global $ICEcoder;
+
 	if (is_dir($dir)) { 
 		$objects = scandir($dir); 
 		foreach ($objects as $object) { 
-			if ($object != "." && $object != "..") { 
-				filetype($dir."/".$object) == "dir" 
-					? rrmdir($dir."/".$object)
-					: unlink($dir."/".$object); 
+			if ($object != "." && $object != "..") {
+				if (filetype($dir."/".$object) == "dir") {
+					rrmdir($dir."/".$object);
+				} else {
+					$ICEcoder['deleteToTmp']
+						? rename($dir."/".$object,str_replace("\\","/",dirname(__FILE__))."/../tmp/.".str_replace(":","_",str_replace("/","_",$dir))."/".$object)
+						: unlink($dir."/".$object);
+				}
 			} 
 		} 
-		reset($objects); 
-	rmdir($dir); 
+		reset($objects);
+		$ICEcoder['deleteToTmp']
+			? rename($dir,str_replace("\\","/",dirname(__FILE__))."/../tmp/.".str_replace(":","_",str_replace("/","_",$dir)))
+			: rmdir($dir);
 	} 
 };
 
@@ -852,7 +865,7 @@ function rrmdir($dir) {
 
 if (!isset($ftpSite) && !$error && $_GET['action']=="replaceText") {
 	if (!$demoMode && is_writable($file)) {
-		$loadedFile = toUTF8noBOM(file_get_contents($file,false,$context),true);
+		$loadedFile = toUTF8noBOM(getData($file),true);
 		$newContent = str_replace(strClean($_GET['find']),strClean($_GET['replace']),$loadedFile);
 		$fh = fopen($file, 'w') or die($t['Sorry, cannot save']);
 		fwrite($fh, $newContent);
@@ -873,7 +886,7 @@ if (!isset($ftpSite) && !$error && $_GET['action']=="replaceText") {
 
 if (!isset($ftpSite) && !$error && $_GET['action']=="getRemoteFile") {
 	$lineNumber = max(isset($_REQUEST['lineNumber'])?intval($_REQUEST['lineNumber']):1, 1);
-	if ($remoteFile = toUTF8noBOM(file_get_contents($file,false,$context),true)) {
+	if ($remoteFile = toUTF8noBOM(getData($file,'curl'),true)) {
 		// replace \r\n (Windows), \r (old Mac) and \n (Linux) line endings with whatever we chose to be lineEnding
 		$remoteFile = str_replace("\r\n", $ICEcoder["lineEnding"], $remoteFile);
 		$remoteFile = str_replace("\r", $ICEcoder["lineEnding"], $remoteFile);
@@ -946,7 +959,7 @@ if (!isset($filemtime) && !is_dir($file)) {
 	$filemtime = $serverType=="Linux" ? filemtime($file) : "1000000";
 }
 // Set $timeStart, use 0 if not available
-$timeStart = isset($_POST["timeStart"]) ? $_POST["timeStart"] : 0;
+$timeStart = isset($_POST["timeStart"]) ? numClean($_POST["timeStart"]) : 0;
 
 if (isset($ftpSite)) {
 	// Get info on dir/file now
@@ -979,12 +992,12 @@ echo '{
 		"exists": '.$itemExists.'
 	},
 	"action": {
-		"initial" : "'.$_GET["action"].'",
+		"initial" : "'.xssClean($_GET['action'],"html").'",
 		"final" : "'.$finalAction.'",
 		"timeStart": '.$timeStart.',
 		"timeEnd": 0,
 		"timeTaken": 0,
-		"csrf": "'.$_GET["csrf"].'",
+		"csrf": "'.xssClean($_GET['csrf'],"html").'",
 		"doNext" : "'.preg_replace('/\r|\n/','',str_replace('	','',str_replace('"','\"',$doNext))).'top.ICEcoder.switchMode();"
 	},
 	"status": {

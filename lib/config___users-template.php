@@ -1,6 +1,6 @@
 <?php
 $ICEcoderUserSettings = array(
-"versionNo"		=> "5.5",
+"versionNo"		=> "5.7",
 "licenseEmail"		=> "",
 "licenseCode"		=> "",
 "configCreateDate"	=> 0,
@@ -11,6 +11,7 @@ $ICEcoderUserSettings = array(
 "languageUser"		=> "english.php",
 "backupsKept"		=> true,
 "backupsDays"		=> 14,
+"deleteToTmp"		=> true,
 "findFilesExclude"	=> array(".doc",".gif",".jpg",".jpeg",".pdf",".png",".swf",".xml",".zip"),
 "codeAssist"		=> true,
 "visibleTabs"		=> false,
@@ -39,6 +40,7 @@ $ICEcoderUserSettings = array(
 "bugFileMaxLines"	=> 0,
 "githubAuthToken"	=> "",
 "plugins"		=> array(),
+"ftpSites"		=> array(),
 "githubLocalPaths"	=> array(),
 "githubRemotePaths"	=> array(),
 "previousFiles"		=> "",

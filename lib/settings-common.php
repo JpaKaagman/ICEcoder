@@ -45,6 +45,40 @@ if (isset($_SESSION['text'])) {
 	$t = $text['settings-common'];
 }
 
+// Get data from a fopen or CURL connection
+function getData($url,$type='fopen',$dieMessage=false) {
+	global $context;
+
+	// Request is to connect via CURL
+	if ($type == "curl" && function_exists('curl_init')) {
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+		curl_setopt($ch, CURLOPT_USERAGENT, 'ICEcoder');
+		curl_setopt($ch, CURLOPT_FAILONERROR, true);
+		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+		curl_setopt($ch, CURLOPT_AUTOREFERER, true);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+		$data = curl_exec($ch);
+		curl_close($ch);
+	// Otherwise, use an fopen connection
+	} elseif (ini_get('allow_url_fopen')) {
+		$data = @file_get_contents($url,false,$context);
+		if (!$data) {
+			$data = @file_get_contents(str_replace("https:","http:",$url), false, $context);
+		}
+	}
+	// Return data or die with message
+	if ($data) {
+		return $data;
+	} elseif ($dieMessage) {
+		die($dieMessage);
+		exit;
+	}
+}
+
 // Logout if that's the action we're taking
 if (isset($_GET['logout'])) {
 	include(dirname(__FILE__)."/../processes/on-user-logout.php");
@@ -55,7 +89,7 @@ if (isset($_GET['logout'])) {
 	die("Logging you out...");
 }
 
-// If magic quotes are still on (attempted to switch off in php.ini)
+// If magic quotes are still on
 if (get_magic_quotes_gpc ()) {
 	function stripslashes_deep($value) {
 		$value = is_array($value) ? array_map('stripslashes_deep', $value) : stripslashes($value);
@@ -125,6 +159,13 @@ function xssClean($data,$type) {
 	}
 
 	$output = str_replace($bad, $good, $data);
+	return $output;
+}
+
+
+// Clean PHP code injection attempts
+function injClean($data) {
+	$output = str_replace("(", "", str_replace(")", "", str_replace(";", "", $data)));
 	return $output;
 }
 
@@ -226,11 +267,15 @@ function getVersionsCount($fileLoc,$fileName) {
 		$backupIndex = $backupDirBase.$backupDirHost."/".$backupDateDirs[$i]."/.versions-index";
 		// Have a .versions-index file? Get contents
 		if (file_exists($backupIndex) && is_readable($backupIndex)) {
-			$versionsInfo = file_get_contents($backupIndex,false,$context);
+			$versionsInfo = getData($backupIndex);
 			$versionsInfo = explode("\n",$versionsInfo);
 			// For each line, check if it's our file and if so, add the count to our $count value and $dateCount array
 			for ($j=0; $j<count($versionsInfo); $j++) {
-				$fileRef = $fileLoc."/".$fileName." = ";
+				// Replace any backslashes in $fileLoc
+				$fileLoc = str_replace("\\","/",$fileLoc);
+				// Join $fileLock and $fileName into a path and replace double slashes
+				$fileRef = str_replace("//","/",$fileLoc."/".$fileName." = ");
+				// Check if we have a match
 				if (strpos($versionsInfo[$j],$fileRef) === 0) {
 					// We have a match, so split on the " = " and we can grab number as 2nd part
 					$lineInfo = explode(" = ",$versionsInfo[$j]);

@@ -6,7 +6,7 @@ $t = $text['settings-update'];
 // Update our 'root' value to be blank
 // which resets the file manager to localhost root again
 if (!$demoMode && isset($_SESSION['loggedIn']) && $_SESSION['loggedIn']) {
-	$settingsContents = file_get_contents($settingsFile,false,$context);
+	$settingsContents = getData($settingsFile);
 	// Replace our root var
 	$repPosStart = strpos($settingsContents,'"root"');
 	$repPosEnd = strpos($settingsContents,'"checkUpdates"');
@@ -22,6 +22,10 @@ if (!$demoMode && isset($_SESSION['loggedIn']) && $_SESSION['loggedIn']) {
 		$fh = fopen($settingsFile, 'w');
 		fwrite($fh, $settingsContents);
 		fclose($fh);
+
+		// Clear any FTP session we may have
+		$_SESSION['ftpSiteRef'] = false;
+
 		// Now we've reset the root path to localhost root, refresh the file manager to show it
 		echo "<script>top.ICEcoder.refreshFileManager();</script>";
 	} else {

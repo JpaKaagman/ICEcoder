@@ -1,15 +1,4 @@
 <?php
-$ftpSiteConn = false;
-if ($ftpSiteConn == 1) {
-	$ftpSite = "";        // FTP site domain, eg http://yourdomain.com
-	$ftpHost = "";        // FTP host, eg ftp.yourdomain.com
-	$ftpUser = "";        // FTP username
-	$ftpPass = "";        // FTP password
-	$ftpPasv = false;     // FTP account requires PASV mode?
-	$ftpMode = FTP_ASCII; // FTP transfer mode, FTP_ASCII or FTP_BINARY
-	$ftpRoot = "";        // FTP root dir to use as base, eg /htdocs
-}
-
 // Establish settings and users template filenames
 $configSettings = 'config___settings.php';
 $configUsersTemplate = 'config___users-template.php';
@@ -66,7 +55,7 @@ $ICEcoderUserSettings['previousFiles'] = $prevFilesAvail;
 
 // Replace our config created date with the filemtime?
 if (basename($_SERVER['SCRIPT_NAME']) == "index.php" && $ICEcoderUserSettings['configCreateDate'] == 0) {
-	$settingsContents = file_get_contents(dirname(__FILE__)."/".$settingsFile,false,$context);
+	$settingsContents = getData(dirname(__FILE__)."/".$settingsFile);
 	clearstatcache();
 	$configfilemtime = filemtime(dirname(__FILE__)."/"."config___settings.php");
 	// Make it a number (avoids null, undefined etc)
@@ -175,17 +164,24 @@ for ($i=0;$i<count($settingsArray);$i++) {
 	if (!isset($_SESSION[$settingsArray[$i]])) {$_SESSION[$settingsArray[$i]] = $ICEcoder[$settingsArray[$i]];}
 }
 
-// Determin our allowed IP addresses
-$allowedIP = false;
-for($i=0;$i<count($_SESSION['allowedIPs']);$i++) {
-	if ($_SESSION['allowedIPs'][$i]==$_SERVER["REMOTE_ADDR"]||$_SESSION['allowedIPs'][$i]=="*") {
-		$allowedIP = true;
-	}
-}
-// If user not allowed to view, display message
-if (!$allowedIP) {
-	die('Sorry, access not permitted');
+// Check IP permissions
+if (!in_array($_SERVER["REMOTE_ADDR"], $_SESSION['allowedIPs']) && !in_array("*", $_SESSION['allowedIPs'])) {
+	header('Location: /');
+	die("Sorry, not in allowed IPs list");
+	exit;
 };
+
+// Establish any FTP site to use
+if (isset($_SESSION['ftpSiteRef']) && $_SESSION['ftpSiteRef'] !== false) {
+	$ftpSiteArray = $ICEcoder['ftpSites'][$_SESSION['ftpSiteRef']];
+	$ftpSite = $ftpSiteArray['site'];                                         // FTP site domain, eg http://yourdomain.com
+	$ftpHost = $ftpSiteArray['host'];                                         // FTP host, eg ftp.yourdomain.com
+	$ftpUser = $ftpSiteArray['user'];                                         // FTP username
+	$ftpPass = $ftpSiteArray['pass'];                                         // FTP password
+	$ftpPasv = $ftpSiteArray['pasv'];                                         // FTP account requires PASV mode?
+	$ftpMode = $ftpSiteArray['mode'] == "FTP_ASCII" ? FTP_ASCII : FTP_BINARY; // FTP transfer mode, FTP_ASCII or FTP_BINARY
+	$ftpRoot = $ftpSiteArray['root'];                                         // FTP root dir to use as base, eg /htdocs
+}
 
 // Save currently opened files in previousFiles and last10Files arrays
 include(dirname(__FILE__)."/settings-save-current-files.php");
@@ -207,7 +203,7 @@ if ((!$_SESSION['loggedIn'] || $ICEcoder["password"] == "") && !strpos($_SERVER[
 // If we're unlocking ICEcoder after donating
 } elseif (isset($_POST['submit']) && (strpos($_POST['submit'],"Unlock ICEcoder")>-1)) {
 	if (generateHash(strClean($_POST['email']),$_POST['code'])==$_POST['code']) {
-		$settingsContents = file_get_contents($settingsFile,false,$context);
+		$settingsContents = getData($settingsFile);
 		// Replace our empty email & code with the one submitted by user
 		$settingsContents = str_replace('"licenseEmail"		=> "",','"licenseEmail"		=> "'.$_POST['email'].'",',$settingsContents);
 		$settingsContents = str_replace('"licenseCode"		=> "",','"licenseCode"		=> "'.$_POST['code'].'",',$settingsContents);
@@ -237,7 +233,7 @@ if ((!$_SESSION['loggedIn'] || $ICEcoder["password"] == "") && !strpos($_SERVER[
 	// If the password hasn't been set and we're setting it
 	if ($ICEcoder["password"] == "" && isset($_POST['submit']) && (strpos($_POST['submit'],"set password")>-1)) {
 		$password = generateHash(strClean($_POST['password']));
-		$settingsContents = file_get_contents($settingsFile,false,$context);
+		$settingsContents = getData($settingsFile);
 		// Replace our empty password with the one submitted by user
 		$settingsContents = str_replace('"password"		=> "",','"password"		=> "'.$password.'",',$settingsContents);
 		// Also set the update checker preference
@@ -262,7 +258,7 @@ if ((!$_SESSION['loggedIn'] || $ICEcoder["password"] == "") && !strpos($_SERVER[
 		}
 		// Disable the enableRegistration config setting if the user had that option chosen
 		if (isset($_POST['disableFurtherRegistration'])) {
-			$updatedConfigSettingsFile = file_get_contents(dirname(__FILE__)."/".$configSettings);
+			$updatedConfigSettingsFile = getData(dirname(__FILE__)."/".$configSettings);
 			if ($fUConfigSettings = fopen(dirname(__FILE__)."/".$configSettings, 'w')) {
 				$updatedConfigSettingsFile = str_replace('"enableRegistration"	=> true','"enableRegistration"	=> false',$updatedConfigSettingsFile);
 				fwrite($fUConfigSettings, $updatedConfigSettingsFile);
